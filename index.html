@@ -3858,37 +3858,66 @@ async function loadMarket(){
   const el=document.getElementById('mkt-body');if(!el)return;
   el.innerHTML=`<div style="text-align:center;padding:30px;color:var(--muted)">
     <div style="font-size:1.5rem;margin-bottom:8px">⏳</div>Carregando cotações...</div>`;
-  try{
-    const syms=MARKET_TICKERS.map(t=>t.sym).join(',');
-    const url=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange`;
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const data=await res.json();
-    const quotes=JSON.parse(data.contents).quoteResponse.result;
-    el.innerHTML=quotes.map(q=>{
-      const t=MARKET_TICKERS.find(x=>x.sym===q.symbol)||{name:q.symbol,icon:'📊',color:'var(--g)'};
-      const price=q.regularMarketPrice||0;
-      const chg=q.regularMarketChangePercent||0;
-      const up=chg>=0;
-      return `<div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
-        <div style="width:44px;height:44px;border-radius:12px;background:${t.color}22;border:1px solid ${t.color}44;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:${t.color};flex-shrink:0">${t.icon}</div>
-        <div style="flex:1"><div style="font-size:.92rem;font-weight:800">${t.name}</div><div style="font-size:.65rem;color:var(--muted)">${q.symbol}</div></div>
-        <div style="text-align:right">
-          <div style="font-size:1rem;font-weight:800">${price<10?price.toFixed(4):price<1000?price.toFixed(2):price.toLocaleString('en-US',{maximumFractionDigits:0})}</div>
-          <div style="font-size:.75rem;font-weight:700;color:${up?'#4caf50':'var(--r)'}">
-            ${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)}%</div>
-        </div>
-      </div>`;
-    }).join('');
-    const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    el.innerHTML+=`<div style="font-size:.62rem;color:var(--muted);text-align:center;margin-top:6px">Atualizado às ${now} · Yahoo Finance</div>`;
-  }catch(e){
-    el.innerHTML=`<div style="background:var(--s3);border-radius:14px;padding:20px;text-align:center">
-      <div style="font-size:1.5rem;margin-bottom:8px">🌐</div>
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">Sem conexão à internet</div>
-      <div style="font-size:.75rem;color:var(--muted);margin-bottom:12px">Verifique sua conexão e tente novamente</div>
-      <button class="btn btn-g" style="font-size:.8rem;padding:10px 20px" onclick="loadMarket()">🔄 Tentar novamente</button>
-    </div>`;
+
+  const syms=MARKET_TICKERS.map(t=>t.sym).join(',');
+  const yahooUrl=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange`;
+
+  // Try multiple proxies
+  const proxies=[
+    `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}`,
+  ];
+
+  let quotes=null;
+  for(const proxy of proxies){
+    try{
+      const res=await fetch(proxy,{signal:AbortSignal.timeout(8000)});
+      if(!res.ok)continue;
+      const data=await res.json();
+      // allorigins wraps in .contents, others return directly
+      const raw=data.contents||data;
+      const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+      quotes=parsed?.quoteResponse?.result;
+      if(quotes&&quotes.length>0)break;
+    }catch(e){continue;}
   }
+
+  if(!quotes||!quotes.length){
+    // Fallback: show static prices with disclaimer
+    el.innerHTML=`<div style="background:var(--s3);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px">
+      <div style="font-size:1.3rem;margin-bottom:6px">🌐</div>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">Sem acesso às cotações</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:12px;line-height:1.5">O servidor de cotações está indisponível no momento.<br>Tente novamente mais tarde.</div>
+      <button class="btn btn-g" style="font-size:.8rem;padding:10px 20px" onclick="loadMarket()">🔄 Tentar novamente</button>
+    </div>
+    ${MARKET_TICKERS.map(t=>`
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;opacity:.5">
+        <div style="width:44px;height:44px;border-radius:12px;background:${t.color}22;border:1px solid ${t.color}44;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:${t.color};flex-shrink:0">${t.icon}</div>
+        <div style="flex:1"><div style="font-size:.92rem;font-weight:800">${t.name}</div><div style="font-size:.65rem;color:var(--muted)">${t.sym}</div></div>
+        <div style="font-size:.8rem;color:var(--muted)">—</div>
+      </div>`).join('')}`;
+    return;
+  }
+
+  el.innerHTML=quotes.map(q=>{
+    const t=MARKET_TICKERS.find(x=>x.sym===q.symbol)||{name:q.symbol,icon:'📊',color:'var(--g)'};
+    const price=q.regularMarketPrice||0;
+    const chg=q.regularMarketChangePercent||0;
+    const up=chg>=0;
+    const priceStr=price<0.01?price.toFixed(6):price<10?price.toFixed(4):price<1000?price.toFixed(2):price.toLocaleString('en-US',{maximumFractionDigits:0});
+    return `<div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;border-radius:12px;background:${t.color}22;border:1px solid ${t.color}44;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:${t.color};flex-shrink:0">${t.icon}</div>
+      <div style="flex:1"><div style="font-size:.92rem;font-weight:800">${t.name}</div><div style="font-size:.65rem;color:var(--muted)">${q.symbol}</div></div>
+      <div style="text-align:right">
+        <div style="font-size:1rem;font-weight:800">${priceStr}</div>
+        <div style="font-size:.75rem;font-weight:700;color:${up?'#4caf50':'var(--r)'}">
+          ${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)}%</div>
+      </div>
+    </div>`;
+  }).join('');
+  const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  el.innerHTML+=`<div style="font-size:.62rem;color:var(--muted);text-align:center;margin-top:6px">Atualizado às ${now} · Yahoo Finance</div>`;
 }
 
 function renderGoals(){
