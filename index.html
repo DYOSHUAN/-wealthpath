@@ -631,6 +631,21 @@ select.inp option{background:var(--s1)}
     <div class="ob-logo">🎨</div>
     <div id="ob-s4-h" class="ob-h">Seu estilo</div>
     <div id="ob-s4-p" class="ob-p">Escolha o visual — pode mudar depois</div>
+
+    <!-- Currency picker in onboarding -->
+    <div class="field" style="margin-bottom:14px">
+      <label style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">💱 Moeda principal</label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px" id="ob-currency-grid">
+        ${['USD','BRL','EUR','JPY','CAD','CNY','GBP','AUD','MXN'].map(code=>{
+          const cur=ALL_CURRENCIES[code];
+          return `<div onclick="obSetCurrency('${code}')" id="ob-cur-${code}" class="ob-house${code==='USD'?' sel':''}" style="padding:8px;text-align:center">
+            <div style="font-size:1.2rem">${cur.flag}</div>
+            <div style="font-size:.6rem;font-weight:700;margin-top:2px">${code}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
     <div class="ob-theme-grid" id="ob-themes"></div>
 
     <div id="ob-final-summary" style="background:var(--s2);border:1px solid rgba(232,168,74,.2);border-radius:16px;padding:16px;margin-top:12px">
@@ -698,9 +713,14 @@ select.inp option{background:var(--s1)}
     <!-- Income row -->
     <div style="padding:6px 16px 8px;font-size:.65rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)">Adicionar renda</div>
     <div class="income-row">
-      <input class="inp" type="number" id="income-val" placeholder="Valor ($)" inputmode="decimal">
-      <button class="btn btn-g" onclick="addIncome()">+ Renda</button>
+      <div id="income-cur-btn" onclick="cycleIncomeCur()" style="
+        background:var(--s3);border:1.5px solid var(--g);border-radius:10px;
+        padding:8px 10px;font-size:.78rem;font-weight:800;color:var(--g);
+        cursor:pointer;flex-shrink:0;min-width:56px;text-align:center;white-space:nowrap">USD</div>
+      <input class="inp" type="number" id="income-val" placeholder="0.00" inputmode="decimal" style="flex:1;margin:0" oninput="updateIncomePreview()">
+      <button class="btn btn-g" onclick="addIncome()" style="white-space:nowrap">+ Renda</button>
     </div>
+    <div id="income-preview" style="font-size:.7rem;color:var(--muted);padding:2px 16px 6px;min-height:18px"></div>
 
     <!-- Period selector -->
     <div class="period-sel">
@@ -980,7 +1000,15 @@ select.inp option{background:var(--s1)}
   <div class="modal">
     <div class="modal-bar"></div>
     <div class="modal-title" id="spend-modal-title">Registrar gasto</div>
-    <div class="field"><label>Valor ($)</label><input class="inp" type="number" id="spend-val" placeholder="0.00" inputmode="decimal"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <div id="spend-cur-btn" onclick="cycleSpendCur()" style="
+        background:var(--s3);border:1.5px solid var(--g);border-radius:10px;
+        padding:8px 12px;font-size:.88rem;font-weight:800;color:var(--g);
+        cursor:pointer;flex-shrink:0;min-width:64px;text-align:center">USD</div>
+      <input class="inp" type="number" id="spend-val" placeholder="0.00" inputmode="decimal"
+        style="flex:1;margin:0" oninput="updateSpendPreview()">
+    </div>
+    <div id="spend-preview" style="font-size:.75rem;color:var(--muted);text-align:center;margin-bottom:8px;min-height:18px"></div>
     <div class="field"><label>Anotação (opcional)</label><input class="inp" id="spend-note" placeholder="Ex: Almoço no trabalho"></div>
     <div class="modal-actions">
       <button class="btn btn-s" onclick="closeModal('spend-modal')">Cancelar</button>
@@ -994,8 +1022,19 @@ select.inp option{background:var(--s1)}
   <div class="modal">
     <div class="modal-bar"></div>
     <div class="modal-title" id="bank-tx-title">Transação</div>
-    <div style="font-size:.75rem;color:var(--muted);margin-bottom:12px" id="bank-tx-info"></div>
-    <div class="field"><label>Valor ($)</label><input class="inp" type="number" id="bank-tx-val" placeholder="0.00" inputmode="decimal"></div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:10px" id="bank-tx-info"></div>
+    <!-- Currency input row -->
+    <div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div id="bank-tx-cur-btn" onclick="cycleBankTxCur()" style="
+          background:var(--s3);border:1.5px solid var(--g);border-radius:10px;
+          padding:8px 12px;font-size:.88rem;font-weight:800;color:var(--g);
+          cursor:pointer;flex-shrink:0;min-width:64px;text-align:center">USD</div>
+        <input class="inp" type="number" id="bank-tx-val" placeholder="0.00" inputmode="decimal"
+          style="flex:1;margin:0" oninput="updateBankTxPreview()">
+      </div>
+      <div id="bank-tx-preview" style="font-size:.75rem;color:var(--muted);text-align:center;min-height:18px"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-s" onclick="closeModal('bank-tx-modal')">Cancelar</button>
       <button class="btn btn-g" id="bank-tx-btn" onclick="doBankTx()">Confirmar</button>
@@ -1138,6 +1177,19 @@ select.inp option{background:var(--s1)}
     </div>
     <div class="field" id="rem-date-wrap" style="display:none"><label>Dia do mês (mensal)</label><input class="inp" type="number" id="rem-month-day" placeholder="Ex: 15" min="1" max="31" inputmode="numeric"></div>
     <div class="modal-actions"><button class="btn btn-s" onclick="closeModal('new-reminder-modal')">Cancelar</button><button class="btn btn-g" onclick="saveReminder()">✓ Salvar</button></div>
+  </div>
+</div>
+
+<!-- Currency Picker -->
+<div class="overlay" id="currency-modal">
+  <div class="modal">
+    <div class="modal-bar"></div>
+    <div class="modal-title">💱 Moeda principal</div>
+    <p style="font-size:.82rem;color:var(--sub);margin-bottom:16px;line-height:1.5">
+      Todos os valores do app serão exibidos nesta moeda. Os bancos de outros países mostrarão também o valor local.
+    </p>
+    <div id="currency-list"></div>
+    <button class="btn btn-s" style="width:100%;margin-top:12px" onclick="closeModal('currency-modal')">Fechar</button>
   </div>
 </div>
 
@@ -1455,6 +1507,22 @@ const CAT_COLORS=[
 // CURRENCY RATES (vs USD)
 // ═══════════════════════════════════════════
 // Country → currency mapping
+// All supported currencies
+const ALL_CURRENCIES={
+  USD:{code:'USD',sym:'$',name:'Dólar (USD)',flag:'🇺🇸',rate:1},
+  BRL:{code:'BRL',sym:'R$',name:'Real (BRL)',flag:'🇧🇷',rate:5.05},
+  EUR:{code:'EUR',sym:'€',name:'Euro (EUR)',flag:'🇪🇺',rate:0.92},
+  JPY:{code:'JPY',sym:'¥',name:'Iene (JPY)',flag:'🇯🇵',rate:149.5},
+  CAD:{code:'CAD',sym:'CA$',name:'Dólar Canadense',flag:'🇨🇦',rate:1.36},
+  CNY:{code:'CNY',sym:'¥',name:'Yuan (CNY)',flag:'🇨🇳',rate:7.24},
+  GBP:{code:'GBP',sym:'£',name:'Libra (GBP)',flag:'🇬🇧',rate:0.79},
+  AUD:{code:'AUD',sym:'A$',name:'Dólar Australiano',flag:'🇦🇺',rate:1.53},
+  MXN:{code:'MXN',sym:'$',name:'Peso Mexicano',flag:'🇲🇽',rate:17.2},
+  COP:{code:'COP',sym:'$',name:'Peso Colombiano',flag:'🇨🇴',rate:4000},
+  ARS:{code:'ARS',sym:'$',name:'Peso Argentino',flag:'🇦🇷',rate:900},
+};
+
+// Country → currency mapping
 const COUNTRY_CURRENCY={
   us:{code:'USD',sym:'$',name:'Dólar',rate:1},
   br:{code:'BRL',sym:'R$',name:'Real',rate:5.05},
@@ -1466,28 +1534,51 @@ const COUNTRY_CURRENCY={
   de:{code:'EUR',sym:'€',name:'Euro',rate:0.92},
   emerg:{code:'USD',sym:'$',name:'Dólar',rate:1},
 };
+
+// Get user's currency
+function userCur(){return ALL_CURRENCIES[S.currency||'USD']||ALL_CURRENCIES.USD;}
+
+// Convert USD amount to user's currency
+function toUserCur(usdAmt){
+  const cur=userCur();
+  return usdAmt*cur.rate;
+}
+
+// Convert user currency amount to USD
+function toUSD(amt){
+  const cur=userCur();
+  return amt/cur.rate;
+}
 function bankCurr(bankId){
   const b=BANKS.find(x=>x.id===bankId);
   return COUNTRY_CURRENCY[b?.country]||COUNTRY_CURRENCY.us;
 }
-// Format bank balance: shows local currency + USD equivalent
+// Format bank balance: shows in user currency + bank local if different
 function fBankAmt(usdAmt,bankId){
-  const cur=bankCurr(bankId);
-  if(cur.code==='USD')return f(usdAmt);
-  const local=usdAmt*cur.rate;
-  const localFmt=local>=1000000
-    ?cur.sym+(local/1000000).toFixed(2)+'M'
-    :local>=1000
-      ?cur.sym+(local/1000).toFixed(1)+'K'
-      :cur.sym+local.toFixed(0);
-  return `${localFmt}<span style="font-size:.7em;opacity:.55;margin-left:3px">${f(usdAmt)}</span>`;
+  const bankC=bankCurr(bankId);
+  const userC=userCur();
+  const userAmt=usdAmt*userC.rate;
+  
+  // Format user currency amount
+  const userFmt=userAmt>=1000000
+    ?userC.sym+(userAmt/1000000).toFixed(2)+'M'
+    :userAmt>=1000
+      ?userC.sym+(userAmt/1000).toFixed(1)+'K'
+      :(userC.code==='JPY'||userC.code==='COP'||userC.code==='ARS')
+        ?userC.sym+Math.round(userAmt).toLocaleString('en-US')
+        :userC.sym+userAmt.toFixed(2);
+
+  // If bank currency ≠ user currency, show bank local too
+  if(bankC.code!==userC.code&&bankC.code!=='USD'){
+    const local=usdAmt*bankC.rate;
+    const localFmt=local>=1000?bankC.sym+(local/1000).toFixed(1)+'K':bankC.sym+local.toFixed(0);
+    return `${userFmt}<span style="font-size:.7em;opacity:.5;margin-left:3px">${localFmt}</span>`;
+  }
+  return userFmt;
 }
-// Returns formatted local currency string
+// Returns formatted local bank currency
 function fLocal(usdAmt,bankId){
-  const cur=bankCurr(bankId);
-  if(cur.code==='USD')return f(usdAmt);
-  const local=usdAmt*cur.rate;
-  return cur.sym+(local>=1000?(local/1000).toFixed(1)+'K':local.toFixed(0));
+  return fBankAmt(usdAmt,bankId);
 }
 const RATES={USD:1,BRL:5.05,EUR:0.92,JPY:149.5,GBP:0.79,CAD:1.36,CNY:7.24,AUD:1.53};
 
@@ -1625,7 +1716,8 @@ const DEF=()=>({
   notes:[],events:[],earned:[],
   totalDeposits:0,goals:[],budgets:{},aptGoals:[],
   salaryFreq:'semanal',incomeType:'emprego',autoPeriod:false,lastAutoPeriod:'',
-  water:0,electric:0,gas:0,internet:0
+  water:0,electric:0,gas:0,internet:0,
+  currency:'USD'
 });
 let S=DEF();
 
@@ -1649,6 +1741,7 @@ function migrate(){
   if(!S.totalDeposits)S.totalDeposits=0;
   if(!S.reminders)S.reminders=[];
   if(!S.salaryFreq)S.salaryFreq='semanal';
+  if(!S.currency)S.currency='USD';
   if(!S.incomeType)S.incomeType='emprego';
   if(!S.water)S.water=0;
   if(!S.electric)S.electric=0;
@@ -1663,7 +1756,25 @@ function migrate(){
 // ═══════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════
-const f=v=>'$'+(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+// Smart formatter — always shows in user's chosen currency
+const f=v=>{
+  const cur=userCur();
+  const amt=(v||0)*cur.rate;
+  const abs=Math.abs(amt);
+  const neg=amt<0?'-':'';
+  let str;
+  if(abs>=1000000) str=cur.sym+neg+(abs/1000000).toFixed(2)+'M';
+  else if(abs>=1000) str=cur.sym+neg+(abs/1000).toFixed(1)+'K';
+  else if(cur.code==='JPY'||cur.code==='COP'||cur.code==='ARS') str=cur.sym+neg+Math.round(abs).toLocaleString('en-US');
+  else str=cur.sym+neg+abs.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return str;
+};
+// Format with USD equivalent shown as sub-text (for bank items)
+const fWithUSD=(v)=>{
+  const cur=userCur();
+  if(cur.code==='USD') return f(v);
+  return `${f(v)}<span style="font-size:.7em;opacity:.5;margin-left:3px">$${(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+};
 const pct=(a,b)=>b>0?Math.min(100,(a/b)*100):0;
 
 let toastTimer=null;
@@ -2251,6 +2362,13 @@ function updateAptSummary(){
     ${pctSal?`<div style="font-size:.68rem;color:${parseFloat(pctSal)>40?'var(--r)':'var(--muted)'};margin-top:2px;text-align:right">${pctSal}% do seu salário semanal${parseFloat(pctSal)>40?' ⚠️ desafiador':parseFloat(pctSal)<=25?' ✅ possível':''}</div>`:''}`;
 }
 
+function obSetCurrency(code){
+  S.currency=code;
+  document.querySelectorAll('[id^="ob-cur-"]').forEach(el=>{
+    el.classList.toggle('sel', el.id==='ob-cur-'+code);
+  });
+}
+
 function obBuildThemes(){
   const el=document.getElementById('ob-themes');
   if(!el)return;
@@ -2364,15 +2482,47 @@ function addPeriod(){
 // ═══════════════════════════════════════════
 // INCOME
 // ═══════════════════════════════════════════
+let incomeInputCur='USD';
+
+function cycleIncomeCur(){
+  const opts=txCurrencies(null);
+  const idx=opts.findIndex(o=>o.code===incomeInputCur);
+  incomeInputCur=opts[(idx+1)%opts.length].code;
+  const btn=document.getElementById('income-cur-btn');
+  if(btn)btn.textContent=incomeInputCur;
+  updateIncomePreview();
+}
+
+function updateIncomePreview(){
+  const raw=parseFloat(document.getElementById('income-val')?.value)||0;
+  const el=document.getElementById('income-preview');
+  if(!el||!raw){if(el)el.textContent='';return;}
+  const usd=toUSDFromCode(raw,incomeInputCur);
+  const userC=userCur();
+  const parts=[];
+  if(incomeInputCur!=='USD') parts.push(`≈ $${usd.toFixed(2)} USD`);
+  if(userC.code!=='USD'&&userC.code!==incomeInputCur) parts.push(`${userC.sym}${(usd*userC.rate).toFixed(2)} ${userC.code}`);
+  el.textContent=parts.join(' · ');
+}
+
+function initIncomeInput(){
+  const userC=userCur();
+  incomeInputCur=userC.code;
+  const btn=document.getElementById('income-cur-btn');
+  if(btn)btn.textContent=userC.sym+' '+userC.code;
+}
+
 function addIncome(){
-  const v=parseFloat(document.getElementById('income-val').value);
-  if(!v||v<=0){toast('⚠️ Informe um valor maior que zero');return;}
+  const raw=parseFloat(document.getElementById('income-val').value);
+  if(!raw||raw<=0){toast('⚠️ Informe um valor maior que zero');return;}
+  const v=toUSDFromCode(raw,incomeInputCur); // store in USD
   if(v>99999){toast('⚠️ Valor muito alto');return;}
   const p=curPeriod();if(!p)return;
   p.bal+=v;p.rec+=v;
   p.hist.push({type:'income',v,date:new Date().toLocaleDateString('pt-BR')});
   checkAchs();save();renderHome();
   document.getElementById('income-val').value='';
+  document.getElementById('income-preview').textContent='';
   toast('💵 '+f(v)+' adicionado!');
 }
 
@@ -2391,6 +2541,7 @@ function renderHome(){
   const h=new Date().getHours();
   const gr=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
   document.getElementById('home-greeting').textContent=`${gr}, ${S.userName||'amigo'}! 👋`;
+  initIncomeInput();
   const days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const mn=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const now=new Date();
@@ -2854,17 +3005,18 @@ function openSpend(catId){
   spendCatId=catId;
   const cat=p.cats.find(c=>c.id===catId);
   document.getElementById('spend-modal-title').textContent=(cat?.icon||'')+'  '+cat?.name+' · Disponível: '+f(p.bal);
-  document.getElementById('spend-val').value='';
   document.getElementById('spend-note').value='';
+  initSpendModal();
   openModal('spend-modal');
 }
 
 function doSpend(){
-  const v=parseFloat(document.getElementById('spend-val').value);
-  if(!v||v<=0){toast('⚠️ Informe um valor maior que zero');return;}
+  const raw=parseFloat(document.getElementById('spend-val').value);
+  if(!raw||raw<=0){toast('⚠️ Informe um valor maior que zero');return;}
+  const v=toUSDFromCode(raw,spendInputCur); // convert to USD
   const p=curPeriod();if(!p)return;
   if(p.bal<=0){toast('⚠️ Saldo zerado — adicione renda antes de gastar');return;}
-  if(v>p.bal){toast('⚠️ Valor maior que o saldo ('+f(p.bal)+')');return;}
+  if(v>p.bal+0.01){toast('⚠️ Valor maior que o saldo ('+f(p.bal)+')');return;}
   const cat=p.cats.find(c=>c.id===spendCatId);if(!cat)return;
   cat.amt+=v;p.bal-=v;
   if(!cat.hist)cat.hist=[];
@@ -2982,10 +3134,11 @@ function bankDeposit(id){
   if(!p||disponivel<=0){toast('⚠️ Saldo zerado — adicione renda antes de depositar');return;}
   bankTxId=id;bankTxType='dep';
   const bk=BANKS.find(b=>b.id===id);
-  document.getElementById('bank-tx-title').textContent='⬆️ Depositar em '+bk?.name;
+  const bankC=bankCurr(id);
+  document.getElementById('bank-tx-title').textContent='⬆️ Depositar em '+(bk?.name||'');
   document.getElementById('bank-tx-info').textContent='💰 Disponível: '+f(disponivel)+' · será descontado do saldo';
   document.getElementById('bank-tx-btn').textContent='⬆️ Depositar';
-  document.getElementById('bank-tx-val').value='';
+  initBankTxModal(id);
   openModal('bank-tx-modal');
 }
 function bankWithdraw(id){
@@ -2993,25 +3146,27 @@ function bankWithdraw(id){
   if(bal<=0){toast('⚠️ Sem saldo neste banco');return;}
   bankTxId=id;bankTxType='wit';
   const bk=BANKS.find(b=>b.id===id);
-  document.getElementById('bank-tx-title').textContent='⬇️ Retirar de '+bk?.name;
-  document.getElementById('bank-tx-info').textContent='Saldo no banco: '+f(bal)+' · valor retorna ao saldo';
+  document.getElementById('bank-tx-title').textContent='⬇️ Retirar de '+(bk?.name||'');
+  document.getElementById('bank-tx-info').textContent='Saldo no banco: '+fBankAmt(bal,id)+' · valor retorna ao saldo';
   document.getElementById('bank-tx-btn').textContent='⬇️ Retirar';
-  document.getElementById('bank-tx-val').value='';
+  initBankTxModal(id);
   openModal('bank-tx-modal');
 }
 function bankDividend(id){
   bankTxId=id;bankTxType='div';
   const bk=BANKS.find(b=>b.id===id);
-  document.getElementById('bank-tx-title').textContent='💰 Rendimento — '+bk?.name;
+  document.getElementById('bank-tx-title').textContent='💰 Rendimento — '+(bk?.name||'');
   document.getElementById('bank-tx-info').textContent='Rendimento NÃO desconta do saldo — é renda extra!';
   document.getElementById('bank-tx-btn').textContent='💰 Registrar';
-  document.getElementById('bank-tx-val').value='';
+  initBankTxModal(id);
   openModal('bank-tx-modal');
 }
 
 function doBankTx(){
-  const v=parseFloat(document.getElementById('bank-tx-val').value);
-  if(!v||v<=0){toast('⚠️ Valor inválido');return;}
+  const raw=parseFloat(document.getElementById('bank-tx-val').value);
+  if(!raw||raw<=0){toast('⚠️ Valor inválido');return;}
+  // Convert to USD for storage
+  const v=toUSDFromCode(raw,bankTxInputCur);
   const id=bankTxId;
   if(!S.bankHist[id])S.bankHist[id]=[];
 
@@ -3019,20 +3174,20 @@ function doBankTx(){
     const p=curPeriod();
     const disponivel=p?p.bal:0;
     if(!p||disponivel<=0){toast('⚠️ Saldo zerado — adicione renda antes de depositar');return;}
-    if(v>disponivel){toast('⚠️ Valor maior que o saldo disponível ('+f(disponivel)+')');return;}
+    if(v>disponivel+0.01){toast('⚠️ Valor maior que o saldo disponível ('+f(disponivel)+')');return;}
     S.banks[id]=(S.banks[id]||0)+v;
     p.bal-=v;
     S.bankHist[id].push({type:'dep',v,date:new Date().toLocaleDateString('pt-BR'),bal:S.banks[id]});
     S.totalDeposits=(S.totalDeposits||0)+v;
-    toast('🏦 '+f(v)+' depositado!');
+    toast('🏦 '+fBankAmt(v,id)+' depositado!');
   } else if(bankTxType==='wit'){
     const saldoBanco=S.banks[id]||0;
     if(saldoBanco<=0){toast('⚠️ Este banco não tem saldo');return;}
-    if(v>saldoBanco){toast('⚠️ Valor maior que o saldo do banco ('+f(saldoBanco)+')');return;}
+    if(v>saldoBanco+0.01){toast('⚠️ Valor maior que o saldo do banco ('+fBankAmt(saldoBanco,id)+')');return;}
     S.banks[id]-=v;
     const p=curPeriod();if(p)p.bal+=v;
     S.bankHist[id].push({type:'wit',v,date:new Date().toLocaleDateString('pt-BR'),bal:S.banks[id]});
-    toast('💸 '+f(v)+' retirado!');
+    toast('💸 '+fBankAmt(v,id)+' retirado!');
   } else if(bankTxType==='div'){
     S.banks[id]=(S.banks[id]||0)+v;
     const p=curPeriod();if(p){p.rec+=v;p.bal+=v;}
@@ -3546,6 +3701,111 @@ function checkAutoPeriod(){
 }
 
 
+// ══ CURRENCY INPUT SYSTEM ══
+// Currencies available for input — user currency + bank local + USD
+let bankTxInputCur='USD'; // tracks which currency is selected for bank TX
+let spendInputCur='USD';  // tracks which currency for spend
+
+// Available currencies for cycling
+function txCurrencies(bankId){
+  const userC=userCur();
+  const bankC=bankId?bankCurr(bankId):null;
+  const options=[{code:'USD',sym:'$',rate:1}];
+  if(userC.code!=='USD') options.unshift({code:userC.code,sym:userC.sym,rate:userC.rate});
+  if(bankC&&bankC.code!=='USD'&&bankC.code!==userC.code)
+    options.push({code:bankC.code,sym:bankC.sym,rate:bankC.rate});
+  // Deduplicate
+  return options.filter((v,i,a)=>a.findIndex(x=>x.code===v.code)===i);
+}
+
+function cycleBankTxCur(){
+  const opts=txCurrencies(bankTxId);
+  const idx=opts.findIndex(o=>o.code===bankTxInputCur);
+  bankTxInputCur=opts[(idx+1)%opts.length].code;
+  const btn=document.getElementById('bank-tx-cur-btn');
+  if(btn)btn.textContent=bankTxInputCur;
+  updateBankTxPreview();
+}
+
+function updateBankTxPreview(){
+  const raw=parseFloat(document.getElementById('bank-tx-val')?.value)||0;
+  const el=document.getElementById('bank-tx-preview');
+  if(!el||!raw){if(el)el.textContent='';return;}
+  const usd=toUSDFromCode(raw,bankTxInputCur);
+  const userC=userCur();
+  const bankC=bankCurr(bankTxId);
+  const parts=[];
+  if(bankTxInputCur!=='USD') parts.push(`$${usd.toFixed(2)} USD`);
+  if(userC.code!=='USD'&&userC.code!==bankTxInputCur) parts.push(`${userC.sym}${(usd*userC.rate).toFixed(2)} ${userC.code}`);
+  if(bankC.code!=='USD'&&bankC.code!==bankTxInputCur&&bankC.code!==userC.code) parts.push(`${bankC.sym}${(usd*bankC.rate).toFixed(0)} ${bankC.code}`);
+  el.textContent=parts.length?'≈ '+parts.join(' · '):'';
+}
+
+function cycleSpendCur(){
+  const opts=txCurrencies(null);
+  const idx=opts.findIndex(o=>o.code===spendInputCur);
+  spendInputCur=opts[(idx+1)%opts.length].code;
+  const btn=document.getElementById('spend-cur-btn');
+  if(btn)btn.textContent=spendInputCur;
+  updateSpendPreview();
+}
+
+function updateSpendPreview(){
+  const raw=parseFloat(document.getElementById('spend-val')?.value)||0;
+  const el=document.getElementById('spend-preview');
+  if(!el||!raw){if(el)el.textContent='';return;}
+  const usd=toUSDFromCode(raw,spendInputCur);
+  const userC=userCur();
+  const parts=[];
+  if(spendInputCur!=='USD') parts.push(`$${usd.toFixed(2)} USD`);
+  if(userC.code!=='USD'&&userC.code!==spendInputCur) parts.push(`${userC.sym}${(usd*userC.rate).toFixed(2)} ${userC.code}`);
+  el.textContent=parts.length?'≈ '+parts.join(' · '):'';
+}
+
+function toUSDFromCode(amt,code){
+  const cur=Object.values(ALL_CURRENCIES).find(c=>c.code===code)||{rate:1};
+  return amt/cur.rate;
+}
+
+function initBankTxModal(id){
+  // Set initial currency to user's currency
+  const userC=userCur();
+  bankTxInputCur=userC.code;
+  const btn=document.getElementById('bank-tx-cur-btn');
+  if(btn)btn.textContent=userC.sym+' '+userC.code;
+  const prev=document.getElementById('bank-tx-preview');
+  if(prev)prev.textContent='';
+  document.getElementById('bank-tx-val').value='';
+}
+
+function initSpendModal(){
+  const userC=userCur();
+  spendInputCur=userC.code;
+  const btn=document.getElementById('spend-cur-btn');
+  if(btn)btn.textContent=userC.sym+' '+userC.code;
+  const prev=document.getElementById('spend-preview');
+  if(prev)prev.textContent='';
+}
+
+// Update exchange rates from live API
+async function updateLiveRates(){
+  try{
+    const res=await fetch('https://open.er-api.com/v6/latest/USD',{signal:AbortSignal.timeout(6000)});
+    if(!res.ok)return;
+    const data=await res.json();
+    if(!data.rates)return;
+    // Update ALL_CURRENCIES rates
+    Object.keys(ALL_CURRENCIES).forEach(code=>{
+      if(data.rates[code]) ALL_CURRENCIES[code].rate=data.rates[code];
+    });
+    // Update COUNTRY_CURRENCY too
+    Object.values(COUNTRY_CURRENCY).forEach(c=>{
+      if(data.rates[c.code]) c.rate=data.rates[c.code];
+    });
+    console.log('✅ Rates updated from ER-API');
+  }catch(e){}
+}
+
 // ── SIMULATION ──
 function calcSim(){
   const cap=parseFloat(document.getElementById('sim-cap').value)||0;
@@ -3842,17 +4102,133 @@ function switchMais(tab){
 
 // ── MERCADO ──
 const MARKET_TICKERS=[
-  {sym:'BTC-USD',name:'Bitcoin',icon:'₿',color:'#f7931a'},
-  {sym:'ETH-USD',name:'Ethereum',icon:'Ξ',color:'#627eea'},
-  {sym:'AAPL',name:'Apple',icon:'🍎',color:'#888'},
-  {sym:'TSLA',name:'Tesla',icon:'⚡',color:'#cc0000'},
-  {sym:'GOOGL',name:'Google',icon:'🔍',color:'#4285f4'},
-  {sym:'MSFT',name:'Microsoft',icon:'🪟',color:'#00a4ef'},
-  {sym:'NVDA',name:'Nvidia',icon:'🎮',color:'#76b900'},
-  {sym:'AMZN',name:'Amazon',icon:'📦',color:'#ff9900'},
-  {sym:'BRL=X',name:'USD/BRL',icon:'🇧🇷',color:'#009c3b'},
-  {sym:'EURUSD=X',name:'EUR/USD',icon:'🇪🇺',color:'#003399'},
+  {sym:'BTC-USD',name:'Bitcoin',icon:'₿',color:'#f7931a',type:'crypto',cgId:'bitcoin'},
+  {sym:'ETH-USD',name:'Ethereum',icon:'Ξ',color:'#627eea',type:'crypto',cgId:'ethereum'},
+  {sym:'BNB-USD',name:'BNB',icon:'🔶',color:'#f3ba2f',type:'crypto',cgId:'binancecoin'},
+  {sym:'SOL-USD',name:'Solana',icon:'◎',color:'#9945ff',type:'crypto',cgId:'solana'},
+  {sym:'AAPL',name:'Apple',icon:'🍎',color:'#888',type:'stock'},
+  {sym:'TSLA',name:'Tesla',icon:'⚡',color:'#cc0000',type:'stock'},
+  {sym:'GOOGL',name:'Google',icon:'🔍',color:'#4285f4',type:'stock'},
+  {sym:'MSFT',name:'Microsoft',icon:'🪟',color:'#00a4ef',type:'stock'},
+  {sym:'NVDA',name:'Nvidia',icon:'🎮',color:'#76b900',type:'stock'},
+  {sym:'AMZN',name:'Amazon',icon:'📦',color:'#ff9900',type:'stock'},
 ];
+
+// Exchange rates using open.er-api.com (free, CORS enabled)
+const FX_PAIRS=[
+  {sym:'USD/BRL',name:'Dólar/Real',icon:'🇧🇷',color:'#009c3b'},
+  {sym:'EUR/USD',name:'Euro/Dólar',icon:'🇪🇺',color:'#003399'},
+  {sym:'USD/JPY',name:'Dólar/Iene',icon:'🇯🇵',color:'#bc002d'},
+];
+
+async function loadMarket(){
+  const el=document.getElementById('mkt-body');if(!el)return;
+  el.innerHTML=`<div style="text-align:center;padding:30px;color:var(--muted)">
+    <div style="font-size:1.5rem;margin-bottom:8px;animation:spin 1s linear infinite">⏳</div>
+    <div>Carregando cotações...</div></div>`;
+
+  try{
+    // ── Crypto: CoinGecko (free, CORS OK) ──
+    const cgIds=MARKET_TICKERS.filter(t=>t.type==='crypto').map(t=>t.cgId).join(',');
+    const cgUrl=`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true`;
+    
+    // ── Stocks: use stooq.com CSV (free, CORS OK) ──
+    const stockTickers=MARKET_TICKERS.filter(t=>t.type==='stock');
+    
+    // ── FX: open.er-api.com ──
+    const fxUrl=`https://open.er-api.com/v6/latest/USD`;
+
+    // Fetch all in parallel
+    const [cgRes, fxRes] = await Promise.allSettled([
+      fetch(cgUrl, {signal:AbortSignal.timeout(8000)}),
+      fetch(fxUrl, {signal:AbortSignal.timeout(8000)}),
+    ]);
+
+    let cgData={}, fxData={};
+    if(cgRes.status==='fulfilled'&&cgRes.value.ok) cgData=await cgRes.value.json();
+    if(fxRes.status==='fulfilled'&&fxRes.value.ok) fxData=await fxRes.value.json();
+
+    // ── Stocks via Yahoo Finance v8 (try direct) ──
+    let stockData={};
+    try{
+      const stockSyms=stockTickers.map(t=>t.sym).join(',');
+      const yUrl=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${stockSyms}`;
+      const yRes=await fetch(yUrl,{
+        signal:AbortSignal.timeout(6000),
+        headers:{'User-Agent':'Mozilla/5.0'}
+      });
+      if(yRes.ok){
+        const yJson=await yRes.json();
+        (yJson?.quoteResponse?.result||[]).forEach(q=>{
+          stockData[q.symbol]={price:q.regularMarketPrice,chg:q.regularMarketChangePercent};
+        });
+      }
+    }catch(e){}
+
+    // ── Render ──
+    let html='';
+
+    // Crypto rows
+    MARKET_TICKERS.filter(t=>t.type==='crypto').forEach(t=>{
+      const d=cgData[t.cgId];
+      const price=d?.usd||0;
+      const chg=d?.usd_24h_change||0;
+      const up=chg>=0;
+      const priceStr=price>1000?price.toLocaleString('en-US',{maximumFractionDigits:0}):price>1?price.toFixed(2):price.toFixed(4);
+      html+=mkMarketRow(t,priceStr,chg,up,!!d);
+    });
+
+    // Stock rows
+    stockTickers.forEach(t=>{
+      const d=stockData[t.sym];
+      const price=d?.price||0;
+      const chg=d?.chg||0;
+      const up=chg>=0;
+      const priceStr=price>0?price.toFixed(2):'—';
+      html+=mkMarketRow(t,price>0?priceStr:'—',chg,up,!!d);
+    });
+
+    // FX rows
+    if(fxData.rates){
+      const pairs=[
+        {sym:'USD/BRL',name:'Dólar → Real',icon:'🇧🇷',color:'#009c3b',rate:fxData.rates.BRL},
+        {sym:'EUR/USD',name:'Euro → Dólar',icon:'🇪🇺',color:'#003399',rate:1/fxData.rates.EUR},
+        {sym:'USD/JPY',name:'Dólar → Iene',icon:'🇯🇵',color:'#bc002d',rate:fxData.rates.JPY},
+      ];
+      pairs.forEach(p=>{
+        if(p.rate){
+          html+=mkMarketRow(
+            {name:p.name,icon:p.icon,color:p.color,sym:p.sym},
+            p.rate.toFixed(p.rate>10?2:4),0,true,true
+          );
+        }
+      });
+    }
+
+    const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    el.innerHTML=html+`<div style="font-size:.62rem;color:var(--muted);text-align:center;margin-top:8px">Atualizado às ${now} · CoinGecko · Yahoo Finance · ER-API</div>`;
+
+  }catch(e){
+    el.innerHTML=`<div style="background:var(--s3);border-radius:14px;padding:20px;text-align:center">
+      <div style="font-size:1.5rem;margin-bottom:8px">🌐</div>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:4px">Sem conexão à internet</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:12px">Verifique sua internet e tente novamente</div>
+      <button class="btn btn-g" style="font-size:.8rem;padding:10px 20px" onclick="loadMarket()">🔄 Tentar novamente</button>
+    </div>`;
+  }
+}
+
+function mkMarketRow(t,priceStr,chg,up,hasData){
+  return `<div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;${!hasData?'opacity:.5':''}">
+    <div style="width:44px;height:44px;border-radius:12px;background:${t.color}22;border:1px solid ${t.color}44;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:${t.color};flex-shrink:0">${t.icon}</div>
+    <div style="flex:1"><div style="font-size:.92rem;font-weight:800">${t.name}</div><div style="font-size:.65rem;color:var(--muted)">${t.sym}</div></div>
+    <div style="text-align:right">
+      <div style="font-size:1rem;font-weight:800">${priceStr}</div>
+      ${hasData&&chg!==0?`<div style="font-size:.75rem;font-weight:700;color:${up?'#4caf50':'var(--r)'}">
+        ${up?'▲':'▼'} ${Math.abs(chg).toFixed(2)}%</div>`:'<div style="font-size:.7rem;color:var(--muted)">—</div>'}
+    </div>
+  </div>`;
+}
 
 async function loadMarket(){
   const el=document.getElementById('mkt-body');if(!el)return;
@@ -4272,6 +4648,10 @@ function renderCfg(){
       <div style="font-size:.75rem;color:var(--muted);margin-top:2px">Toque na foto para alterar</div>
     </div>
 
+    <div class="cfg-item" onclick="openCurrencyPicker()">
+      <div><div class="cfg-label">💱 Moeda principal</div><div class="cfg-sub">${userCur().flag} ${userCur().name}</div></div>
+      <div style="font-size:1.1rem;font-weight:800;color:var(--g)">${userCur().sym}</div>
+    </div>
     <div class="cfg-item" onclick="go('mais');switchMais('rem')">
       <div><div class="cfg-label">🔔 Lembretes</div><div class="cfg-sub">${(S.reminders||[]).length} lembrete(s) configurado(s)</div></div>
       <div style="font-size:1.2rem">→</div>
@@ -4327,6 +4707,37 @@ function exportData(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='wealthpath-backup.json';a.click();
   toast('📤 Dados exportados!');
+}
+
+function openCurrencyPicker(){
+  const el=document.getElementById('currency-list');
+  if(!el)return;
+  el.innerHTML=Object.values(ALL_CURRENCIES).map(cur=>{
+    const sel=S.currency===cur.code;
+    return `<div onclick="setCurrency('${cur.code}')" style="
+      display:flex;align-items:center;gap:14px;padding:14px 12px;
+      background:${sel?'rgba(232,168,74,.1)':'var(--s2)'};
+      border:1.5px solid ${sel?'var(--g)':'var(--border2)'};
+      border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .2s">
+      <span style="font-size:1.6rem">${cur.flag}</span>
+      <div style="flex:1">
+        <div style="font-size:.92rem;font-weight:700">${cur.name}</div>
+        <div style="font-size:.7rem;color:var(--muted)">1 USD = ${cur.rate} ${cur.code}</div>
+      </div>
+      <div style="font-size:1.1rem;font-weight:800;color:${sel?'var(--g)':'var(--muted)'}">${cur.sym}</div>
+      ${sel?'<div style="color:var(--g);font-size:1rem">✓</div>':''}
+    </div>`;
+  }).join('');
+  openModal('currency-modal');
+}
+
+function setCurrency(code){
+  S.currency=code;
+  save();
+  closeModal('currency-modal');
+  renderHome();
+  renderCfg();
+  toast(`💱 Moeda alterada para ${ALL_CURRENCIES[code]?.name||code}!`);
 }
 
 function resetApp(){
@@ -4525,9 +4936,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       updateProfilePics();
       setTimeout(checkReminders, 1200);
       setTimeout(checkAutoPeriod, 1500);
+      setTimeout(updateLiveRates, 2000); // update exchange rates
     } else {
       document.getElementById('ob').style.display='flex';
       obBuildThemes();
+      setTimeout(updateLiveRates, 1000); // update rates during onboarding too
     }
     go('home');
   });
